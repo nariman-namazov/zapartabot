@@ -2,7 +2,7 @@
 Збірник народних [повір'їв](https://slovnyk.ua/index.php?swrd=повір'я) для відгону растобісів.
 
 ## Як розгортати?
-Код написаний для Амазонівської Лямбди, тож на чомусь іншому навряд працюватиме зі старту. [Злучує](https://slovotvir.org.ua/words/intehratsiia) наступні [служби](https://slovotvir.org.ua/words/servis-it) Амазона:
+[Чит](https://slovotvir.org.ua/words/kod) написаний для Амазонівської Лямбди, тож на чомусь іншому навряд працюватиме зі старту. [Злучує](https://slovotvir.org.ua/words/intehratsiia) наступні [служби](https://slovotvir.org.ua/words/servis-it) Амазона:
 - Лямбда
 - С3
 
@@ -10,7 +10,7 @@
 - Безпосередньо лямбди в якому завгодно регіоні
 - С3 відра, але якщо вкрай сильно хочеться спростити собі життя, то можна читати [сніп](https://slovotvir.org.ua/words/fail) [ставильним](https://slovotvir.org.ua/words/standart) Пітонівським `open()`
 - Інтернет ворота (ґейтвей) у підмережі, де беспосердньо розміщена лямбда
-- [Пусковик](https://slovotvir.org.ua/words/tryher-psykholohiia) перед лямбдою зі списку, що пропонує Амазон. [Чит](https://slovotvir.org.ua/words/kod) підтримує [зрощення](https://slovotvir.org.ua/words/intehratsiia) з рівнозавантажувальником (лоадбалансером)
+- [Пусковик](https://slovotvir.org.ua/words/tryher-psykholohiia) перед лямбдою зі списку, що пропонує Амазон. Чит підтримує [зрощення](https://slovotvir.org.ua/words/intehratsiia) з рівнозавантажувальником (лоадбалансером)
 - NAT ворота (ґейтвей)
 
 ## Чиї це вирази?
