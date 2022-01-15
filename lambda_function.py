@@ -22,23 +22,23 @@ def send_message(event, phrase, phrase_bank):
     # Body is forwarded as a string of text rather than something else
     event_dict = json.loads(event["body"])
 
-    dump_it = ""
+    #dump_it = ""
     try:    # inline query
         message = 0 # setting to 0 for if-else statements later on
         query_id = str(event_dict["inline_query"]["id"])
         chat_id = int(event_dict["inline_query"]["from"]["id"])
-        dump_it += f"inline chat_id OK - {chat_id}"
+        #dump_it += f"inline chat_id OK - {chat_id}"
         query_message = event_dict["inline_query"]["query"]
-        dump_it += f"inline message OK - {query_message}"
+        #dump_it += f"inline message OK - {query_message}"
     except KeyError as e:   # message directly to the bot
         query = 0
-        dump_it += f"caught KeyError - {str(e)}"
+        #dump_it += f"caught KeyError - {str(e)}"
         sender_id = int(event_dict["message"]["from"]["id"])
-        dump_it += f"sender_id OK - {sender_id}"
+        #dump_it += f"sender_id OK - {sender_id}"
         chat_id = int(event_dict["message"]["chat"]["id"])
-        dump_it += f"chat_id OK - {chat_id}"
+        #dump_it += f"chat_id OK - {chat_id}"
         message = event_dict["message"]["text"]
-        dump_it += f"message OK - {message}"
+        #dump_it += f"message OK - {message}"
 
     if message:
         payload = {
@@ -56,7 +56,7 @@ def send_message(event, phrase, phrase_bank):
         # match_count is set to 1 and not 0 because we already have "Random" as the first item
         match_count = 1; payload_result = [{"type": "article", "id": "1", "title": "Random", "input_message_content": {"message_text": phrase}}]
         for row in phrase_bank:
-            if query_message in row and query_message != "":
+            if query_message.upper() in row.upper() and query_message != "":    # a workaround for Python's case sensitivity
                 match_count += 1
                 if match_count >= 51:
                     break
@@ -72,7 +72,7 @@ def send_message(event, phrase, phrase_bank):
         }
         msg = requests.post("https://api.telegram.org/ТОКЕН ХУЯРИТЬ СЮДИ/answerInlineQuery", headers=HEADERS, data=json.dumps(payload))
         #log_payload(event, "response.json", msg.content.decode())
-    log_payload(event, "dump.txt", dump_it)
+    #log_payload(event, "dump.txt", dump_it)
     return 100
 
 def lambda_handler(event, context):
