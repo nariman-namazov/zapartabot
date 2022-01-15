@@ -13,12 +13,12 @@ def log_payload(event, file=0, what=0):
     result = incoming.put(Body=txt_data)
     return 100
 
-def read_file(event):
+def read_file():
     with open("phrases.txt", "r") as file:
         contents = file.readlines()
     return contents
 
-def send_message(event, phrase):
+def send_message(event, phrase, phrase_bank):
     # Body is forwarded as a string of text rather than something else
     event_dict = json.loads(event["body"])
 
@@ -28,8 +28,8 @@ def send_message(event, phrase):
         query_id = str(event_dict["inline_query"]["id"])
         chat_id = int(event_dict["inline_query"]["from"]["id"])
         dump_it += f"inline chat_id OK - {chat_id}"
-        message = event_dict["inline_query"]["query"]
-        dump_it += f"inline message OK - {message}"
+        query_message = event_dict["inline_query"]["query"]
+        dump_it += f"inline message OK - {query_message}"
     except KeyError as e:   # message directly to the bot
         query = 0
         dump_it += f"caught KeyError - {str(e)}"
@@ -47,17 +47,32 @@ def send_message(event, phrase):
             "is_personal": False
         }
         msg = requests.post("https://api.telegram.org/ТОКЕН ХУЯРИТЬ СЮДИ/sendMessage", headers=HEADERS, data=json.dumps(payload))
-        log_payload(event, "response.json", msg.content.decode())
+        #log_payload(event, "response.json", msg.content.decode())
     else:
+        # According to Telegram Bot API docs, there may be no more than 50 items in the inline query response.
+        # We will only accept 49 matches from the phrase bank. Every item on the list will have the same structure for which template can be found below.
+        item_template = {"type": "article", "id": "", "title": "", "input_message_content": ""}
+        
+        # match_count is set to 1 and not 0 because we already have "Random" as the first item
+        match_count = 1; payload_result = [{"type": "article", "id": "1", "title": "Random", "input_message_content": {"message_text": phrase}}]
+        for row in phrase_bank:
+            if query_message in row and query_message != "":
+                match_count += 1
+                if match_count >= 51:
+                    break
+                # API docs do not say how many characters are allowed, 30 is a balanced value
+                _item_template = {"type": "article", "id": str(match_count), "title": str(row[0:30]), "input_message_content": {"message_text": row}}
+                payload_result.append(_item_template)
+
         payload = {
             "inline_query_id": query_id,
-            "results": [{"type": "article", "id": "1", "title": "Fire away", "input_message_content": {"message_text": phrase}}],
+            "results": payload_result,
             "is_personal": False,
             "cache_time": 0
         }
         msg = requests.post("https://api.telegram.org/ТОКЕН ХУЯРИТЬ СЮДИ/answerInlineQuery", headers=HEADERS, data=json.dumps(payload))
-        log_payload(event, "response.json", msg.content.decode())
-    log_payload(event, "loggs.txt", dump_it)
+        #log_payload(event, "response.json", msg.content.decode())
+    log_payload(event, "dump.txt", dump_it)
     return 100
 
 def lambda_handler(event, context):
@@ -87,8 +102,8 @@ def lambda_handler(event, context):
             "body": "ACK"
         }
     elif event["path"] == "/terror":
-        phrases = read_file(event); phrase = phrases[random.randrange(0, len(phrases))]
-        result = log_payload(event)
-        result_1 = send_message(event, phrase)
+        phrase_bank = read_file(); phrase = phrase_bank[random.randrange(0, len(phrase_bank))]
+        result = log_payload(event, "loggs.txt")
+        result_1 = send_message(event, phrase, phrase_bank)
         if result + result_1 == 200:
             return {"statusCode": 200}
