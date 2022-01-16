@@ -61,7 +61,7 @@ def send_message(event, phrase, phrase_bank):
                 if match_count >= 51:
                     break
                 # API docs do not say how many characters are allowed, 30 is a balanced value
-                _item_template = {"type": "article", "id": str(match_count), "title": str(row[0:30]), "input_message_content": {"message_text": row}}
+                _item_template = {"type": "article", "id": str(match_count), "title": str(row[0:30] + "..."), "input_message_content": {"message_text": row}}
                 payload_result.append(_item_template)
 
         payload = {
