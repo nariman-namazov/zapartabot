@@ -1,0 +1,450 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+    It is assumed you already have a Route53 domain and a security certificate for it; the latter will be used by the ALB HTTPS listeners.
+    This template sets up necessary networking, IAM roles, policies, and ALB components (lambda itself as well obviously).
+    CloudFormation done creating resources, manually connect Lamda to ALB and redirect traffic to the ALB via an alias in Route53.
+
+Parameters:
+    BucketName:
+        Type: String
+        Default: zzzapartabucket
+        Description: Name of the bucket.
+    LambdaName:
+        Type: String
+        Default: zapartist-terrorist
+        Description: Name of the lambda.
+        Description: Region to which Lambda will be deployed.
+    VPCID:
+        Type: String
+        Default: vpc-xyz123
+        Description: VPC ID network resources will be deployed into.
+    SubnetACIDR:
+        Type: String
+        Description: CIDR of the first subnet for ALB, has to be available in your VPC.
+    SubnetBCIDR:
+        Type: String
+        Description: CIDR of the second subnet for ALB, has to be available in your VPC.
+    IGW:
+        Type: String
+        Default: igw-xyz123
+        Description: IGWID of the Internet Gateway in your VPC. This template assumes your VPC configuration is standard meaning IGW is present from the start.
+    CertificateID:
+        Type: String
+        Description: ID of a certificate that will be used on ALB's listeners.
+
+Resources:
+    SecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId: !Ref VPCID
+            GroupName: zaparta-sg
+            GroupDescription: Allows nothing more than what Telegram requires.
+            SecurityGroupEgress:
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 80
+                  ToPort: 80
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 88
+                  ToPort: 88
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 443
+                  ToPort: 443
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 8443
+                  ToPort: 8443
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 80
+                  ToPort: 80
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 88
+                  ToPort: 88
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 443
+                  ToPort: 443
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 8443
+                  ToPort: 8443
+                  IpProtocol: tcp
+            SecurityGroupIngress:
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 80
+                  ToPort: 80
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 88
+                  ToPort: 88
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 443
+                  ToPort: 443
+                  IpProtocol: tcp
+                - CidrIp: 149.154.160.0/20
+                  FromPort: 8443
+                  ToPort: 8443
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 80
+                  ToPort: 80
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 88
+                  ToPort: 88
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 443
+                  ToPort: 443
+                  IpProtocol: tcp
+                - CidrIp: 91.108.4.0/22
+                  FromPort: 8443
+                  ToPort: 8443
+                  IpProtocol: tcp
+
+    NACL:
+        Type: AWS::EC2::NetworkAcl
+        Properties:
+            VpcId: !Ref VPCID
+    
+    NACLEgressRule:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties:
+            Egress: true
+            CidrBlock: 0.0.0.0/0
+            NetworkAclId: !Ref NACL
+            Protocol: -1
+            RuleAction: allow
+            RuleNumber: 100
+        DependsOn: NACL
+
+    NACLIngressRule:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties:
+            Egress: false
+            CidrBlock: 0.0.0.0/0
+            NetworkAclId: !Ref NACL
+            Protocol: -1
+            RuleAction: allow
+            RuleNumber: 100
+        DependsOn: NACL
+
+    RouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPCID
+    
+    IGWRoute:
+        Type: AWS::EC2::Route
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            RouteTableId: !Ref RouteTable
+            GatewayId: !Ref IGW
+        DependsOn:
+            - RouteTable
+
+    SubnetA:
+        Type: AWS::EC2::Subnet
+        Properties:
+            CidrBlock: !Ref SubnetACIDR
+            AvailabilityZone:
+                Fn::Select:
+                    - 0
+                    - Fn::GetAZs: ""
+            MapPublicIpOnLaunch: true
+            VpcId: !Ref VPCID
+        DependsOn:
+            - NACL
+    
+    SubnetB:
+        Type: AWS::EC2::Subnet
+        Properties:
+            CidrBlock: !Ref SubnetBCIDR
+            AvailabilityZone:
+                Fn::Select:
+                    - 1
+                    - Fn::GetAZs: ""
+            MapPublicIpOnLaunch: true
+            VpcId: !Ref VPCID
+        DependsOn:
+            - NACL
+
+    SubnetAToNACL:
+        Type: AWS::EC2::SubnetNetworkAclAssociation
+        Properties:
+            NetworkAclId: !Ref NACL
+            SubnetId: !Ref SubnetA
+        DependsOn: NACL
+
+    SubnetBToNACL:
+        Type: AWS::EC2::SubnetNetworkAclAssociation
+        Properties:
+            NetworkAclId: !Ref NACL
+            SubnetId: !Ref SubnetB
+        DependsOn: NACL
+
+    SubnetAToRT:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref RouteTable
+            SubnetId: !Ref SubnetA
+        DependsOn: SubnetA
+
+    SubnetBToRT:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref RouteTable
+            SubnetId: !Ref SubnetB
+        DependsOn: SubnetB
+
+    Bucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Ref BucketName
+            AccessControl: BucketOwnerFullControl
+            PublicAccessBlockConfiguration: 
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+            OwnershipControls:
+                Rules:
+                    - ObjectOwnership: BucketOwnerEnforced
+            LifecycleConfiguration:
+                Rules:
+                    - Id: "Delete everything in 3 days"
+                      Prefix: "*"
+                      Status: Enabled
+                      ExpirationInDays: 3
+        DependsOn: SubnetBToRT
+
+    IAMRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: Lambda-Role
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                      Service:
+                        - lambda.amazonaws.com
+                    Action:
+                      - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        DependsOn: Bucket
+
+    IAMPolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+            PolicyName: S3-RW-and-RO
+            Roles:
+                - !Ref IAMRole
+            PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Action:
+                        - s3:List*
+                      Resource: "*"
+                    - Effect: Allow
+                      Action:
+                        - s3:PutObject
+                        - s3:Get*
+                      Resource: !Join
+                        - ""
+                        - - "arn:aws:s3:::"
+                          - !Ref Bucket
+                          - "/*"
+        DependsOn: IAMRole
+
+
+    BucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref Bucket
+            PolicyDocument:
+                Version: 2012-10-17
+                Statement:    
+                    - Action:
+                        - s3:List*
+                      Effect: Allow
+                      Principal: "*"
+                      Resource: !Join
+                          - ""
+                          - - "arn:aws:s3:::"
+                            - !Ref Bucket
+                      Condition:
+                        ArnEquals:
+                          "aws:PrincipalArn": !Join
+                              - ""
+                              - - "arn:aws:iam::"
+                                - !Ref AWS::AccountId
+                                - ":role/"
+                                - !Ref IAMRole
+                    - Action:
+                        - s3:PutObject
+                        - s3:Get*
+                      Effect: Allow
+                      Principal: "*"
+                      Resource: !Join
+                          - ""
+                          - - "arn:aws:s3:::"
+                            - !Ref Bucket
+                            - "/*"
+                      Condition:
+                        ArnEquals:
+                          "aws:PrincipalArn": !GetAtt
+                              - IAMRole
+                              - Arn
+        DependsOn:
+            - Bucket
+            - IAMRole
+
+    Lambda:
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Ref LambdaName
+            Runtime: python3.9
+            Timeout: 15
+            Role: !GetAtt
+                - IAMRole
+                - Arn
+            Handler: index.kod
+            Code:
+                ZipFile: |
+                    import json
+                    def kod(event, context):
+                        # TODO implement
+                        return {
+                            'statusCode': 200,
+                            'body': json.dumps('Ось цей увесь код треба буде замінити')
+                        }
+        DependsOn:
+            - BucketPolicy
+
+    ALBTGPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            FunctionName: !GetAtt
+                - Lambda
+                - Arn
+            Action: "lambda:InvokeFunction"
+            Principal: elasticloadbalancing.amazonaws.com
+        DependsOn: Lambda
+
+    ALBTG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: zaparta-tg
+            HealthCheckEnabled: true
+            HealthCheckPath: "/health"
+            HealthyThresholdCount: 4
+            UnhealthyThresholdCount: 2
+            HealthCheckTimeoutSeconds: 4
+            HealthCheckIntervalSeconds: 300
+            Matcher:
+                HttpCode: 200
+            IpAddressType: ipv4
+            TargetType: lambda
+            Targets:
+                - Id: !GetAtt
+                    - Lambda
+                    - Arn
+                  AvailabilityZone: all
+        DependsOn: ALBTGPermission
+
+    ALB:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: zaparta-alb
+            Scheme: internet-facing
+            LoadBalancerAttributes:
+                - Key: routing.http2.enabled
+                  Value: true
+                - Key: idle_timeout.timeout_seconds
+                  Value: 10
+                - Key: routing.http.xff_client_port.enabled
+                  Value: true
+            IpAddressType: ipv4
+            SecurityGroups:
+                - !Ref SecGroup
+            SubnetMappings:
+                - SubnetId: !Ref SubnetA
+                - SubnetId: !Ref SubnetB
+            Type: application
+        DependsOn:
+            - ALBTG
+            - SecGroup
+            - SubnetA
+            - SubnetB
+
+    Listener80:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref ALBTG
+            LoadBalancerArn: !Ref ALB
+            Port: 80
+            Protocol: HTTP
+        DependsOn: ALB
+    
+    Listener88:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref ALBTG
+            LoadBalancerArn: !Ref ALB
+            Port: 88
+            Protocol: HTTP
+        DependsOn: ALB
+
+    Listener443:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref ALBTG
+            LoadBalancerArn: !Ref ALB
+            Certificates:
+                - CertificateArn: !Join
+                    - ""
+                    - - "arn:aws:acm:"
+                      - !Ref AWS::Region
+                      - ":"
+                      - !Ref AWS::AccountId
+                      - ":certificate/"
+                      - !Ref CertificateID
+            Port: 443
+            Protocol: HTTPS
+            SslPolicy: ELBSecurityPolicy-2016-08
+        DependsOn: ALB
+    
+    Listener8443:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref ALBTG
+            LoadBalancerArn: !Ref ALB
+            Certificates:
+                - CertificateArn: !Join
+                    - ""
+                    - - "arn:aws:acm:"
+                      - !Ref AWS::Region
+                      - ":"
+                      - !Ref AWS::AccountId
+                      - ":certificate/"
+                      - !Ref CertificateID
+            Port: 8443
+            Protocol: HTTPS
+            SslPolicy: ELBSecurityPolicy-2016-08
+        DependsOn: ALB
